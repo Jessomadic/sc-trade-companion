@@ -7,7 +7,7 @@ plugins {
 
 // JAR
 group = 'tools.sctrade'
-version = '1.4.1'
+version = '1.4.2'
 
 java {
 	sourceCompatibility = '21'
@@ -33,6 +33,10 @@ dependencies {
 	// Computer vision
 	implementation 'org.openpnp:opencv:4.9.0-0'
 	
+	// JNA (native interop for oneocr.dll)
+	implementation 'net.java.dev.jna:jna:5.15.0'
+	implementation 'net.java.dev.jna:jna-platform:5.15.0'
+
 	// Utils
 	implementation 'org.imgscalr:imgscalr-lib:4.2'
 	implementation 'org.apache.commons:commons-math3:3.6.1'
@@ -115,9 +119,9 @@ task copyJar(type: Copy, dependsOn: 'build') {
 	rename "${rootProject.name}-${version}.jar", "${rootProject.name}.jar"
 }
 
-task copyWindowsOcrWrapper(type: Copy) {
-	from "./bin/oneocr-wrapper"
-	into "$binariesDir/oneocr-wrapper"
+task copyOneOcr(type: Copy) {
+	from "./bin/oneocr"
+	into "$binariesDir/oneocr"
 }
 
 task copyStartScript(type: Copy) {
@@ -127,5 +131,5 @@ task copyStartScript(type: Copy) {
 	include "${rootProject.name}-admin.bat"
 }
 
-task dist(dependsOn: ['copyJar', 'copyWindowsOcrWrapper', 'copyStartScript', 'jlink']) {
+task dist(dependsOn: ['copyJar', 'copyOneOcr', 'copyStartScript', 'jlink']) {
 }
