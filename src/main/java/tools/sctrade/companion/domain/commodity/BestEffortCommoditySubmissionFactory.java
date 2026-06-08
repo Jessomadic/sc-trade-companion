@@ -2,19 +2,25 @@ package tools.sctrade.companion.domain.commodity;
 
 import java.awt.image.BufferedImage;
 import java.util.Collection;
+import tools.sctrade.companion.domain.SubmissionFactory;
 import tools.sctrade.companion.exceptions.NoListingsException;
 
-public class BestEffortCommoditySubmissionFactory extends CommoditySubmissionFactory {
+/**
+ * Best-effort implementation that delegates to multiple {@link CommoditySubmissionFactory}
+ * instances and returns the result with the most listings.
+ */
+public class BestEffortCommoditySubmissionFactory
+    implements SubmissionFactory<CommoditySubmission> {
+
   private Collection<CommoditySubmissionFactory> commoditySubmissionFactory;
 
   /**
    * Constructor for {@link BestEffortCommoditySubmissionFactory}.
    *
-   * @param commodityListingFactory List of differently configured factories.
+   * @param commoditySubmissionFactory List of differently configured factories.
    */
   public BestEffortCommoditySubmissionFactory(
       Collection<CommoditySubmissionFactory> commoditySubmissionFactory) {
-    super(null, null, null, null, null);
     this.commoditySubmissionFactory = commoditySubmissionFactory;
   }
 

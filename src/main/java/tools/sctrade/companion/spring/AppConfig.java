@@ -1,5 +1,6 @@
 package tools.sctrade.companion.spring;
 
+import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -17,10 +18,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 import tools.sctrade.companion.domain.LocationRepository;
+import tools.sctrade.companion.domain.SubmissionFactory;
 import tools.sctrade.companion.domain.commodity.CommodityListingFactory;
 import tools.sctrade.companion.domain.commodity.CommodityLocationReader;
 import tools.sctrade.companion.domain.commodity.CommodityRepository;
 import tools.sctrade.companion.domain.commodity.CommodityService;
+import tools.sctrade.companion.domain.commodity.CommoditySubmission;
 import tools.sctrade.companion.domain.commodity.CommoditySubmissionFactory;
 import tools.sctrade.companion.domain.gamelog.GameLogPathSubject;
 import tools.sctrade.companion.domain.gamelog.lineprocessors.FallbackLogLineProcessor;
@@ -34,6 +37,7 @@ import tools.sctrade.companion.domain.item.ItemLocationReader;
 import tools.sctrade.companion.domain.item.ItemService;
 import tools.sctrade.companion.domain.item.ItemShopReader;
 import tools.sctrade.companion.domain.item.ItemShopRepository;
+import tools.sctrade.companion.domain.item.ItemSubmission;
 import tools.sctrade.companion.domain.item.ItemSubmissionFactory;
 import tools.sctrade.companion.domain.notification.NotificationRepository;
 import tools.sctrade.companion.domain.notification.NotificationService;
@@ -48,7 +52,11 @@ import tools.sctrade.companion.domain.user.idgenerators.HardwareUserIdGenerator;
 import tools.sctrade.companion.domain.user.idgenerators.RandomUserIdGenerator;
 import tools.sctrade.companion.domain.user.idgenerators.WindowsUserIdGenerator;
 import tools.sctrade.companion.gui.CompanionGui;
-import tools.sctrade.companion.gui.LogsTab;
+import tools.sctrade.companion.gui.screenshot.ScreenshotFactory;
+import tools.sctrade.companion.gui.screenshot.ScreenshotRepository;
+import tools.sctrade.companion.gui.screenshot.ScreenshotSubmissionFacade;
+import tools.sctrade.companion.gui.screenshot.ScreenshotType;
+import tools.sctrade.companion.gui.screenshot.StatusTrackingSubmissionFactory;
 import tools.sctrade.companion.gui.version.CompanionVersionChecker;
 import tools.sctrade.companion.gui.version.CompanionVersionRepository;
 import tools.sctrade.companion.gui.version.UpdateAvailablePopup;
@@ -65,11 +73,13 @@ import tools.sctrade.companion.output.item.ItemCsvWriter;
 import tools.sctrade.companion.output.item.ScTradeToolsItemPublisher;
 import tools.sctrade.companion.output.item.ScTradeToolsItemRepository;
 import tools.sctrade.companion.output.item.ScTradeToolsItemShopRepository;
+import tools.sctrade.companion.utils.Processor;
 import tools.sctrade.companion.utils.SoundUtil;
 
 @Configuration
 @EnableCaching
 public class AppConfig {
+
   @Autowired(required = false)
   private BuildProperties buildProperties;
 
@@ -92,11 +102,6 @@ public class AppConfig {
     settingRepository.set(Setting.SC_TRADE_TOOLS_ROOT_URL, scTradeToolsRootUrl);
 
     return settingRepository;
-  }
-
-  @Bean("LogsTab")
-  public LogsTab buildLogsTab() {
-    return new LogsTab();
   }
 
   @Bean("UserIdGenerator")
@@ -130,16 +135,11 @@ public class AppConfig {
     return new LineListener(oldLogLineProcessor);
   }
 
-  // @Bean("FileTailer")
-  // public FileTailer buildFileTailer(Subject<Path> subject, TailerListener listener,
-  // NotificationService notificationService) {
-  // return new FileTailer(subject, listener, notificationService);
-  // }
-
   @Bean("CompanionGui")
   public CompanionGui buildCompanionGui(UserService userService, GameLogPathSubject gameLogService,
-      SettingRepository settings) {
-    return new CompanionGui(userService, gameLogService, settings, getVersion());
+      SettingRepository settings, ScreenshotRepository screenshotRepository) {
+    return new CompanionGui(userService, gameLogService, settings, screenshotRepository,
+        getVersion());
   }
 
   @Bean("NotificationService")
@@ -223,7 +223,7 @@ public class AppConfig {
     return new CommodityListingFactory(commodityRepository);
   }
 
-  @Bean("CommoditySubmissionFactory")
+  @Bean("RawCommoditySubmissionFactory")
   public CommoditySubmissionFactory buildCommoditySubmissionFactory(UserService userService,
       NotificationService notificationService, CommodityLocationReader commodityLocationReader,
       CommodityListingFactory commodityListingFactory, DiskImageWriter diskImageWriter) {
@@ -231,6 +231,22 @@ public class AppConfig {
 
     return new CommoditySubmissionFactory(userService, notificationService, commodityLocationReader,
         commodityListingFactory, ocr);
+  }
+
+  @Bean("CommoditySubmissionFactory")
+  public SubmissionFactory<CommoditySubmission> buildTrackedCommoditySubmissionFactory(
+      @Qualifier("RawCommoditySubmissionFactory") CommoditySubmissionFactory commoditySubmissionFactory,
+      ScreenshotRepository screenshotRepository, ScreenshotFactory screenshotFactory) {
+    return new StatusTrackingSubmissionFactory<>(commoditySubmissionFactory, screenshotRepository,
+        ScreenshotType.COMMODITY_KIOSK, screenshotFactory);
+  }
+
+  @Bean("CommodityScreenshotSubmissionFacade")
+  public Processor<BufferedImage> buildCommodityScreenshotSubmissionFacade(
+      CommodityService commodityService, ScreenshotRepository screenshotRepository,
+      ScreenshotFactory screenshotFactory) {
+    return new ScreenshotSubmissionFacade(commodityService, screenshotRepository, screenshotFactory,
+        ScreenshotType.COMMODITY_KIOSK);
   }
 
   @Bean("ItemListingFactory")
@@ -249,7 +265,7 @@ public class AppConfig {
     return new ItemShopReader(itemShopRepository);
   }
 
-  @Bean("ItemSubmissionFactory")
+  @Bean("RawItemSubmissionFactory")
   public ItemSubmissionFactory buildItemSubmissionFactory(UserService userService,
       NotificationService notificationService, ItemListingFactory itemListingFactory,
       ItemLocationReader itemLocationReader, ItemShopReader itemShopReader,
@@ -260,8 +276,24 @@ public class AppConfig {
         itemLocationReader, itemShopReader, ocr);
   }
 
+  @Bean("ItemSubmissionFactory")
+  public SubmissionFactory<ItemSubmission> buildTrackedItemSubmissionFactory(
+      @Qualifier("RawItemSubmissionFactory") ItemSubmissionFactory itemSubmissionFactory,
+      ScreenshotRepository screenshotRepository, ScreenshotFactory screenshotFactory) {
+    return new StatusTrackingSubmissionFactory<>(itemSubmissionFactory, screenshotRepository,
+        ScreenshotType.ITEM_KIOSK, screenshotFactory);
+  }
+
+  @Bean("ItemScreenshotSubmissionFacade")
+  public Processor<BufferedImage> buildItemScreenshotSubmissionFacade(ItemService itemService,
+      ScreenshotRepository screenshotRepository, ScreenshotFactory screenshotFactory) {
+    return new ScreenshotSubmissionFacade(itemService, screenshotRepository, screenshotFactory,
+        ScreenshotType.ITEM_KIOSK);
+  }
+
   @Bean("ItemService")
-  public ItemService buildItemService(ItemSubmissionFactory itemSubmissionFactory,
+  public ItemService buildItemService(
+      @Qualifier("ItemSubmissionFactory") SubmissionFactory<ItemSubmission> itemSubmissionFactory,
       @Qualifier("ItemCsvWriter") ItemCsvWriter itemCsvWriter,
       ScTradeToolsItemPublisher scTradeToolsItemPublisher,
       NotificationService notificationService) {
@@ -271,12 +303,22 @@ public class AppConfig {
 
   @Bean("CommodityService")
   public CommodityService buildCommodityService(
-      CommoditySubmissionFactory commoditySubmissionFactory,
+      @Qualifier("CommoditySubmissionFactory") SubmissionFactory<CommoditySubmission> commoditySubmissionFactory,
       @Qualifier("CommodityCsvWriter") CommodityCsvWriter commodityCsvLogger,
       ScTradeToolsCommodityPublisher scTradeToolsCommodityPublisher,
       NotificationService notificationService) {
     return new CommodityService(commoditySubmissionFactory,
         Arrays.asList(commodityCsvLogger, scTradeToolsCommodityPublisher), notificationService);
+  }
+
+  @Bean
+  public ScreenshotRepository buildScreenshotRepository() {
+    return new ScreenshotRepository();
+  }
+
+  @Bean
+  public ScreenshotFactory buildScreenshotFactory() {
+    return new ScreenshotFactory();
   }
 
   @Bean
@@ -286,24 +328,25 @@ public class AppConfig {
 
   @Bean("CommodityScreenPrinter")
   public ScreenPrinter buildCommodityScreenPrinter(
-      @Qualifier("CommodityService") CommodityService commodityService,
+      @Qualifier("CommodityScreenshotSubmissionFacade") Processor<BufferedImage> commoditySubmissionFacade,
       ImageWriter<Optional<Path>> imageWriter, SoundUtil soundPlayer,
       NotificationService notificationService, SettingRepository settings) {
     List<ImageManipulation> postprocessingManipulations = new ArrayList<>();
     postprocessingManipulations.add(new UpscaleTo4k());
 
-    return new ScreenPrinter(Arrays.asList(commodityService), postprocessingManipulations,
-        imageWriter, soundPlayer, notificationService, settings);
+    return new ScreenPrinter(commoditySubmissionFacade, postprocessingManipulations, imageWriter,
+        soundPlayer, notificationService, settings);
   }
 
   @Bean("ItemScreenPrinter")
-  public ScreenPrinter buildItemScreenPrinter(@Qualifier("ItemService") ItemService itemService,
+  public ScreenPrinter buildItemScreenPrinter(
+      @Qualifier("ItemScreenshotSubmissionFacade") Processor<BufferedImage> itemSubmissionFacade,
       ImageWriter<Optional<Path>> imageWriter, SoundUtil soundPlayer,
       NotificationService notificationService, SettingRepository settings) {
     List<ImageManipulation> postprocessingManipulations = new ArrayList<>();
     postprocessingManipulations.add(new UpscaleTo4k());
 
-    return new ScreenPrinter(Arrays.asList(itemService), postprocessingManipulations, imageWriter,
+    return new ScreenPrinter(itemSubmissionFacade, postprocessingManipulations, imageWriter,
         soundPlayer, notificationService, settings);
   }
 

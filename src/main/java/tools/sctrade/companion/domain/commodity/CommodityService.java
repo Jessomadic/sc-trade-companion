@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import tools.sctrade.companion.domain.SubmissionFactory;
 import tools.sctrade.companion.domain.notification.NotificationService;
 import tools.sctrade.companion.utils.AsynchronousProcessor;
 import tools.sctrade.companion.utils.LocalizationUtil;
@@ -18,7 +19,7 @@ import tools.sctrade.companion.utils.LocalizationUtil;
 public class CommodityService extends AsynchronousProcessor<BufferedImage> {
   private final Logger logger = LoggerFactory.getLogger(CommodityService.class);
 
-  private CommoditySubmissionFactory submissionFactory;
+  private SubmissionFactory<CommoditySubmission> submissionFactory;
   private Collection<AsynchronousProcessor<CommoditySubmission>> publishers;
 
   private Semaphore mutex = new Semaphore(1, true);
@@ -32,7 +33,7 @@ public class CommodityService extends AsynchronousProcessor<BufferedImage> {
    * @param publishers Publishers that export commodity submissions.
    * @param notificationService Notification service.
    */
-  public CommodityService(CommoditySubmissionFactory submissionFactory,
+  public CommodityService(SubmissionFactory<CommoditySubmission> submissionFactory,
       Collection<AsynchronousProcessor<CommoditySubmission>> publishers,
       NotificationService notificationService) {
     super(notificationService);
@@ -50,7 +51,8 @@ public class CommodityService extends AsynchronousProcessor<BufferedImage> {
    * @throws InterruptedException If the thread is interrupted.
    */
   public void process(CommodityListing commodityListing) throws InterruptedException {
-    CommoditySubmission submission = submissionFactory.build(commodityListing);
+    CommoditySubmission submission =
+        ((CommoditySubmissionFactory) submissionFactory).build(commodityListing);
 
     process(submission);
   }
@@ -62,7 +64,7 @@ public class CommodityService extends AsynchronousProcessor<BufferedImage> {
    * @throws InterruptedException If the thread is interrupted
    */
   @Override
-  public void process(BufferedImage screenCapture) throws InterruptedException {
+  public void doProcess(BufferedImage screenCapture) throws Exception {
     CommoditySubmission submission = submissionFactory.build(screenCapture);
     notificationService.info(LocalizationUtil.get("infoCommodityListingsRead"));
 
@@ -111,7 +113,7 @@ public class CommodityService extends AsynchronousProcessor<BufferedImage> {
 
       if (submission.isLocated()) {
         logger.debug("Calling publishers...");
-        publishers.stream().forEach(n -> n.processAsynchronously(submission));
+        publishers.stream().forEach(n -> n.process(submission));
         logger.debug("Called publishers");
       } else {
         logger.error("No commodity listings had a valid location");

@@ -2,16 +2,17 @@ package tools.sctrade.companion.domain.item;
 
 import java.awt.image.BufferedImage;
 import java.util.Collection;
+import tools.sctrade.companion.domain.SubmissionFactory;
 import tools.sctrade.companion.domain.notification.NotificationService;
 import tools.sctrade.companion.utils.AsynchronousProcessor;
 
 public class ItemService extends AsynchronousProcessor<BufferedImage> {
 
-  private ItemSubmissionFactory submissionFactory;
+  private SubmissionFactory<ItemSubmission> submissionFactory;
   private Collection<AsynchronousProcessor<ItemSubmission>> publishers;
 
   public ItemService(NotificationService notificationService,
-      ItemSubmissionFactory submissionFactory,
+      SubmissionFactory<ItemSubmission> submissionFactory,
       Collection<AsynchronousProcessor<ItemSubmission>> publishers) {
     super(notificationService);
 
@@ -20,11 +21,12 @@ public class ItemService extends AsynchronousProcessor<BufferedImage> {
   }
 
   @Override
-  protected void process(BufferedImage screenCapture) throws Exception {
+  protected void doProcess(BufferedImage screenCapture) throws Exception {
     ItemSubmission submission = submissionFactory.build(screenCapture);
 
     if (!submission.isEmpty()) {
-      publishers.forEach(p -> p.processAsynchronously(submission));
+      publishers.forEach(p -> p.process(submission));
     }
   }
+
 }

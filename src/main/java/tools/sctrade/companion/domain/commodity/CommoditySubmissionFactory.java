@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.sctrade.companion.domain.SubmissionFactory;
 import tools.sctrade.companion.domain.notification.NotificationService;
 import tools.sctrade.companion.domain.ocr.Ocr;
 import tools.sctrade.companion.domain.user.UserService;
@@ -14,7 +15,8 @@ import tools.sctrade.companion.utils.LocalizationUtil;
 /**
  * Factory for building commodity submissions.
  */
-public class CommoditySubmissionFactory {
+public class CommoditySubmissionFactory implements SubmissionFactory<CommoditySubmission> {
+
   private final Logger logger = LoggerFactory.getLogger(CommoditySubmissionFactory.class);
 
   private UserService userService;
@@ -30,6 +32,7 @@ public class CommoditySubmissionFactory {
    * @param notificationService the notification service
    * @param commodityLocationReader the commodity location reader
    * @param commodityListingFactory the commodity listing factory
+   * @param ocr the OCR service
    */
   public CommoditySubmissionFactory(UserService userService,
       NotificationService notificationService, CommodityLocationReader commodityLocationReader,
@@ -41,6 +44,7 @@ public class CommoditySubmissionFactory {
     this.ocr = ocr;
   }
 
+  @Override
   public CommoditySubmission build(BufferedImage screenCapture) {
     var ocrResult = ocr.read(screenCapture);
     var location = commodityLocationReader.read(screenCapture, ocrResult);
@@ -61,6 +65,12 @@ public class CommoditySubmissionFactory {
     return new CommoditySubmission(userService.get(), listings);
   }
 
+  /**
+   * Builds a commodity submission from a single listing (non-screenshot path, no status tracking).
+   *
+   * @param commodityListing the commodity listing to wrap
+   * @return the commodity submission
+   */
   public CommoditySubmission build(CommodityListing commodityListing) {
     return new CommoditySubmission(userService.get(), List.of(commodityListing));
   }

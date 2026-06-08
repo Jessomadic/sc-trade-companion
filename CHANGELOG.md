@@ -1,4 +1,18 @@
 # SC Trade Companion
+## 1.6.1
+### Bugs
+- Fix an issue where the app would stop processing screenshots after a period of time
+
+## 1.6.0
+### Features
+- Process screenshots of the same type (item/commodity kiosks) sequentially, instead of at the same time. 
+  - This reduces CPU usage for some users
+- Add the screenshot tab, which displays the status for the last 36 screenshots processed
+
+### Misc
+- Add video instructions to the usage tab
+- Improve the UI
+
 ## 1.5.2
 ### Bugs
 - Fix "Connection reset" error

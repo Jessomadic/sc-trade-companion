@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.sctrade.companion.domain.SubmissionFactory;
 import tools.sctrade.companion.domain.notification.NotificationService;
 import tools.sctrade.companion.domain.ocr.Ocr;
 import tools.sctrade.companion.domain.ocr.OcrResult;
@@ -12,7 +13,11 @@ import tools.sctrade.companion.domain.user.UserService;
 import tools.sctrade.companion.exceptions.NoListingsException;
 import tools.sctrade.companion.utils.LocalizationUtil;
 
-public class ItemSubmissionFactory {
+/**
+ * Factory for building item submissions from screen captures.
+ */
+public class ItemSubmissionFactory implements SubmissionFactory<ItemSubmission> {
+
   private final Logger logger = LoggerFactory.getLogger(ItemSubmissionFactory.class);
 
   private UserService userService;
@@ -22,6 +27,16 @@ public class ItemSubmissionFactory {
   private final ItemListingFactory itemListingFactory;
   private Ocr ocr;
 
+  /**
+   * Constructor.
+   *
+   * @param userService the user service
+   * @param notificationService the notification service
+   * @param itemListingFactory the item listing factory
+   * @param itemLocationReader the item location reader
+   * @param itemShopReader the item shop reader
+   * @param ocr the OCR service
+   */
   public ItemSubmissionFactory(UserService userService, NotificationService notificationService,
       ItemListingFactory itemListingFactory, ItemLocationReader itemLocationReader,
       ItemShopReader itemShopReader, Ocr ocr) {
@@ -33,10 +48,11 @@ public class ItemSubmissionFactory {
     this.ocr = ocr;
   }
 
+  @Override
   public ItemSubmission build(BufferedImage screenCapture) {
     var ocrResult = ocr.read(screenCapture);
-    var location = extractLocation(screenCapture, ocrResult);
-    var shop = extractShop(screenCapture, ocrResult);
+    var location = readLocation(screenCapture, ocrResult);
+    var shop = readShop(screenCapture, ocrResult);
 
     if (location.isEmpty() || shop.isEmpty()) {
       return new ItemSubmission(userService.get(), List.of());
@@ -51,7 +67,7 @@ public class ItemSubmissionFactory {
     return new ItemSubmission(userService.get(), listings);
   }
 
-  private Optional<String> extractLocation(BufferedImage screenCapture, OcrResult ocrResult) {
+  private Optional<String> readLocation(BufferedImage screenCapture, OcrResult ocrResult) {
     var location = itemLocationReader.read(screenCapture, ocrResult);
 
     if (location.isEmpty()) {
@@ -61,7 +77,7 @@ public class ItemSubmissionFactory {
     return location;
   }
 
-  private Optional<String> extractShop(BufferedImage screenCapture, OcrResult ocrResult) {
+  private Optional<String> readShop(BufferedImage screenCapture, OcrResult ocrResult) {
     var shop = itemShopReader.read(screenCapture, ocrResult);
 
     if (shop.isEmpty()) {
